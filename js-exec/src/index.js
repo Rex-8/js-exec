@@ -122,9 +122,18 @@ JSExec.prototype.destroy = function() {
   this.listeners.clear();
 };
 
-// Export logic
-if (typeof module !== 'undefined' && typeof module.exports !== 'undefined') {
-  module.exports = JSExec;
-} else {
-  window.JSExec = JSExec;
-}
+// Export logic - make sure it works in all environments
+(function(root, factory) {
+  if (typeof module === 'object' && module.exports) {
+    // Node.js
+    module.exports = factory();
+  } else if (typeof define === 'function' && define.amd) {
+    // AMD
+    define([], factory);
+  } else {
+    // Browser globals
+    root.JSExec = factory();
+  }
+}(typeof self !== 'undefined' ? self : this, function() {
+  return JSExec;
+}));

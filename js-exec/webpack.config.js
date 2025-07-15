@@ -6,9 +6,10 @@ module.exports = {
   output: {
     path: path.resolve(__dirname, 'dist'),
     filename: 'index.js',
-    library: 'JSExec',
-    libraryTarget: 'umd',
-    libraryExport: 'default',
+    library: {
+      name: 'JSExec',
+      type: 'umd'
+    },
     globalObject: 'this'
   },
   plugins: [
@@ -18,5 +19,12 @@ module.exports = {
       inject: false
     })
   ],
-  mode: 'development'
+  mode: 'development',
+  resolve: {
+    fallback: {
+      "fs": false,
+      "path": false,
+      "os": false
+    }
+  }
 };
