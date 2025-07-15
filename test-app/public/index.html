@@ -51,6 +51,19 @@
     .execute-btn:hover {
       background: #45a049;
     }
+    .clear-btn {
+      background: #f44336;
+      color: white;
+      border: none;
+      padding: 12px 24px;
+      border-radius: 5px;
+      cursor: pointer;
+      font-size: 16px;
+      margin-left: 10px;
+    }
+    .clear-btn:hover {
+      background: #da190b;
+    }
     .output-section {
       margin-top: 20px;
     }
@@ -98,6 +111,7 @@ console.log("2 + 2 =", 2 + 2);
 console.error("This is an error");
 throw new Error("Test error");</textarea>
       <button id="executeBtn" class="execute-btn" onclick="executeCode()">Execute Code</button>
+      <button id="clearBtn" class="clear-btn" onclick="clearOutput()">Clear Output</button>
     </div>
     <div class="output-section">
       <h3>Execution Output</h3>
@@ -107,40 +121,81 @@ throw new Error("Test error");</textarea>
 
   <script src="/js-exec/index.js"></script>
   <script>
-    const ExecutorClass = window.JSExec?.default || window.JSExec;
     const outputDisplay = document.getElementById('outputDisplay');
-    outputDisplay.innerHTML += `<div class="debug">[DEBUG] Script loaded, JSExec type: ${typeof ExecutorClass}</div>`;
-
-    let executor;
-    try {
-      if (typeof ExecutorClass !== 'function') {
-        throw new Error('JSExec is not a constructor');
-      }
-      outputDisplay.innerHTML += `<div class="debug">[DEBUG] About to create new JSExec...</div>`;
-      executor = new ExecutorClass();
-      outputDisplay.innerHTML += `<div class="debug">[DEBUG] JSExec created successfully!</div>`;
-      executor.onMessage((message) => {
-        if (message.type === 'stdout') {
-          outputDisplay.innerHTML += `<div class="stdout">[STDOUT] ${message.data}</div>`;
-        } else if (message.type === 'stderr') {
-          outputDisplay.innerHTML += `<div class="stderr">[STDERR] ${message.data}</div>`;
-        }
-        outputDisplay.scrollTop = outputDisplay.scrollHeight;
-      });
-      outputDisplay.innerHTML += `<div class="debug">[DEBUG] Message listener attached!</div>`;
-    } catch (error) {
-      outputDisplay.innerHTML += `<div class="stderr">[ERROR] Failed to initialize executor: ${error.message}</div>`;
+    
+    // Debug logging
+    function addDebugLog(message) {
+      outputDisplay.innerHTML += `<div class="debug">[DEBUG] ${message}</div>`;
+      outputDisplay.scrollTop = outputDisplay.scrollHeight;
     }
+    
+    // Wait for script to load and check what's available
+    setTimeout(() => {
+      addDebugLog(`window.JSExec type: ${typeof window.JSExec}`);
+      
+      // Check if JSExec is available in global scope
+      if (typeof JSExec !== 'undefined') {
+        addDebugLog(`Global JSExec type: ${typeof JSExec}`);
+      }
+      
+      // Try different ways to access JSExec
+      const ExecutorClass = window.JSExec || JSExec || null;
+      
+      if (!ExecutorClass) {
+        addDebugLog('JSExec not found in any scope!');
+        addDebugLog(`Available window properties: ${Object.keys(window).filter(k => k.includes('JS') || k.includes('Exec')).join(', ')}`);
+        return;
+      }
+      
+      let executor;
+      try {
+        if (typeof ExecutorClass !== 'function') {
+          throw new Error(`JSExec is not a constructor, got: ${typeof ExecutorClass}`);
+        }
+        
+        addDebugLog('About to create new JSExec...');
+        executor = new ExecutorClass();
+        addDebugLog('JSExec created successfully!');
+        
+        executor.onMessage((message) => {
+          if (message.type === 'stdout') {
+            outputDisplay.innerHTML += `<div class="stdout">[STDOUT] ${message.data}</div>`;
+          } else if (message.type === 'stderr') {
+            outputDisplay.innerHTML += `<div class="stderr">[STDERR] ${message.data}</div>`;
+          }
+          outputDisplay.scrollTop = outputDisplay.scrollHeight;
+        });
+        
+        addDebugLog('Message listener attached!');
+        
+        // Make executor available globally for the executeCode function
+        window.jsExecutor = executor;
+        
+      } catch (error) {
+        outputDisplay.innerHTML += `<div class="stderr">[ERROR] Failed to initialize executor: ${error.message}</div>`;
+        console.error('Initialization error:', error);
+      }
+    }, 100);
 
     function executeCode() {
+      if (!window.jsExecutor) {
+        outputDisplay.innerHTML += `<div class="stderr">[ERROR] Executor not initialized</div>`;
+        return;
+      }
+      
       const code = document.getElementById('codeInput').value;
       outputDisplay.innerHTML += `<div class="execute-msg">EXECUTING CODE!</div>`;
       outputDisplay.scrollTop = outputDisplay.scrollHeight;
+      
       try {
-        executor.executeCode(code);
+        window.jsExecutor.executeCode(code);
       } catch (error) {
         outputDisplay.innerHTML += `<div class="stderr">[ERROR] During execution: ${error.message}</div>`;
       }
+    }
+    
+    function clearOutput() {
+      outputDisplay.innerHTML = '';
     }
   </script>
 </body>

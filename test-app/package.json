@@ -2,7 +2,7 @@
   "name": "test-app",
   "version": "1.0.0",
   "description": "Test application for js-exec package",
-  "main": "index.js",
+  "main": "server.js",
   "scripts": {
     "start": "node server.js",
     "dev": "node server.js"
