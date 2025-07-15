@@ -1,0 +1,21 @@
+{
+  "name": "js-exec",
+  "version": "1.0.0",
+  "description": "Client-side JavaScript execution package with real-time output streaming",
+  "main": "dist/index.js",
+  "module": "src/index.js",
+  "files": ["dist/", "src/"],
+  "scripts": {
+    "build": "webpack --mode production",
+    "dev": "webpack --mode development --watch",
+    "prepublishOnly": "npm run build"
+  },
+  "keywords": ["javascript", "execution", "sandbox", "iframe", "browser"],
+  "author": "Your Name",
+  "license": "MIT",
+  "devDependencies": {
+    "webpack": "^5.88.0",
+    "webpack-cli": "^5.1.0",
+    "html-webpack-plugin": "^5.5.0"
+  }
+}

@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>js-exec Test App</title>
+  <style>
+    body {
+      font-family: 'Courier New', monospace;
+      background: #1a1a1a;
+      color: #e0e0e0;
+      margin: 0;
+      padding: 20px;
+    }
+    .container {
+      max-width: 800px;
+      margin: 0 auto;
+    }
+    .header {
+      text-align: center;
+      margin-bottom: 30px;
+      padding: 20px;
+      background: #2d2d2d;
+      border-radius: 10px;
+    }
+    .input-section {
+      margin-bottom: 20px;
+    }
+    .code-input {
+      background: #1e1e1e;
+      border: 1px solid #444;
+      border-radius: 5px;
+      padding: 15px;
+      font-family: 'Courier New', monospace;
+      font-size: 14px;
+      color: #e0e0e0;
+      width: 100%;
+      min-height: 150px;
+      resize: vertical;
+      margin-bottom: 15px;
+    }
+    .execute-btn {
+      background: #4CAF50;
+      color: white;
+      border: none;
+      padding: 12px 24px;
+      border-radius: 5px;
+      cursor: pointer;
+      font-size: 16px;
+    }
+    .execute-btn:hover {
+      background: #45a049;
+    }
+    .output-section {
+      margin-top: 20px;
+    }
+    .output-display {
+      background: #1e1e1e;
+      border: 1px solid #444;
+      border-radius: 5px;
+      padding: 15px;
+      font-family: 'Courier New', monospace;
+      font-size: 14px;
+      min-height: 300px;
+      overflow-y: auto;
+      white-space: pre-wrap;
+    }
+    .execute-msg {
+      color: #2196F3;
+      font-weight: bold;
+    }
+    .stdout {
+      color: #4CAF50;
+    }
+    .stderr {
+      color: #f44336;
+    }
+    .debug {
+      color: #ff9800;
+      font-weight: bold;
+    }
+    h3 {
+      color: #e0e0e0;
+      margin-bottom: 10px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h1>js-exec Test App</h1>
+      <p>Enter JavaScript code and see real-time execution output</p>
+    </div>
+    <div class="input-section">
+      <h3>Code Input</h3>
+      <textarea id="codeInput" class="code-input">console.log("Hello, World!");
+console.log("2 + 2 =", 2 + 2);
+console.error("This is an error");
+throw new Error("Test error");</textarea>
+      <button id="executeBtn" class="execute-btn" onclick="executeCode()">Execute Code</button>
+    </div>
+    <div class="output-section">
+      <h3>Execution Output</h3>
+      <div id="outputDisplay" class="output-display"></div>
+    </div>
+  </div>
+
+  <script src="/js-exec/index.js"></script>
+  <script>
+    const ExecutorClass = window.JSExec?.default || window.JSExec;
+    const outputDisplay = document.getElementById('outputDisplay');
+    outputDisplay.innerHTML += `<div class="debug">[DEBUG] Script loaded, JSExec type: ${typeof ExecutorClass}</div>`;
+
+    let executor;
+    try {
+      if (typeof ExecutorClass !== 'function') {
+        throw new Error('JSExec is not a constructor');
+      }
+      outputDisplay.innerHTML += `<div class="debug">[DEBUG] About to create new JSExec...</div>`;
+      executor = new ExecutorClass();
+      outputDisplay.innerHTML += `<div class="debug">[DEBUG] JSExec created successfully!</div>`;
+      executor.onMessage((message) => {
+        if (message.type === 'stdout') {
+          outputDisplay.innerHTML += `<div class="stdout">[STDOUT] ${message.data}</div>`;
+        } else if (message.type === 'stderr') {
+          outputDisplay.innerHTML += `<div class="stderr">[STDERR] ${message.data}</div>`;
+        }
+        outputDisplay.scrollTop = outputDisplay.scrollHeight;
+      });
+      outputDisplay.innerHTML += `<div class="debug">[DEBUG] Message listener attached!</div>`;
+    } catch (error) {
+      outputDisplay.innerHTML += `<div class="stderr">[ERROR] Failed to initialize executor: ${error.message}</div>`;
+    }
+
+    function executeCode() {
+      const code = document.getElementById('codeInput').value;
+      outputDisplay.innerHTML += `<div class="execute-msg">EXECUTING CODE!</div>`;
+      outputDisplay.scrollTop = outputDisplay.scrollHeight;
+      try {
+        executor.executeCode(code);
+      } catch (error) {
+        outputDisplay.innerHTML += `<div class="stderr">[ERROR] During execution: ${error.message}</div>`;
+      }
+    }
+  </script>
+</body>
+</html>
