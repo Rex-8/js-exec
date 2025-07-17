@@ -59,7 +59,6 @@ JSExec.prototype.getIframeContent = function() {
 
 JSExec.prototype.getExecutorScript = function() {
   return `
-    const MAX_EXECUTION_TIME = 5000;
     let promptCounter = 0;
     const pendingPrompts = new Map();
 
@@ -100,31 +99,24 @@ JSExec.prototype.getExecutorScript = function() {
       });
     };
 
-    function executeWithTimeout(code) {
-      const timeoutId = setTimeout(() => {
-        window.parent.postMessage({ type: 'stderr', data: 'Execution timeout: Code took longer than 5000ms' }, '*');
-      }, MAX_EXECUTION_TIME);
-
+    function executeCode(code) {
       try {
         // Use async function to handle potential promises from prompt
         (async function() {
           try {
             await eval(\`(async function() { \${code} })()\`);
-            clearTimeout(timeoutId);
           } catch (error) {
-            clearTimeout(timeoutId);
             window.parent.postMessage({ type: 'stderr', data: error.message + (error.stack ? '\\n' + error.stack : '') }, '*');
           }
         })();
       } catch (error) {
-        clearTimeout(timeoutId);
         window.parent.postMessage({ type: 'stderr', data: error.message + (error.stack ? '\\n' + error.stack : '') }, '*');
       }
     }
 
     window.addEventListener('message', (event) => {
       if (event.data.type === 'EXECUTE_CODE') {
-        executeWithTimeout(event.data.code);
+        executeCode(event.data.code);
       } else if (event.data.type === 'stdin') {
         // Handle stdin response from parent
         const { promptId, value } = event.data;
