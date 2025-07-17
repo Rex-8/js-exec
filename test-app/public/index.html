@@ -92,6 +92,10 @@
       color: #ff9800;
       font-weight: bold;
     }
+    .stdin {
+      color: #9C27B0;
+      font-weight: bold;
+    }
     h3 {
       color: #e0e0e0;
       margin-bottom: 10px;
@@ -107,9 +111,11 @@
     <div class="input-section">
       <h3>Code Input</h3>
       <textarea id="codeInput" class="code-input">console.log("Hello, World!");
-console.log("2 + 2 =", 2 + 2);
-console.error("This is an error");
-throw new Error("Test error");</textarea>
+let name = await prompt("What's your name?");
+console.log("Hello, " + name + "!");
+let age = await prompt("How old are you?", "25");
+console.log("You are " + age + " years old!");
+console.log("Done!");</textarea>
       <button id="executeBtn" class="execute-btn" onclick="executeCode()">Execute Code</button>
       <button id="clearBtn" class="clear-btn" onclick="clearOutput()">Clear Output</button>
     </div>
@@ -122,12 +128,88 @@ throw new Error("Test error");</textarea>
   <script src="/js-exec/index.js"></script>
   <script>
     const outputDisplay = document.getElementById('outputDisplay');
+    let currentStdinHandler = null;
     
     // Debug logging
     function addDebugLog(message) {
       outputDisplay.innerHTML += `<div class="debug">[DEBUG] ${message}</div>`;
       outputDisplay.scrollTop = outputDisplay.scrollHeight;
     }
+    
+    // Add text to output
+    function addToOutput(text, className = '') {
+      const div = document.createElement('div');
+      if (className) div.className = className;
+      div.textContent = text;
+      outputDisplay.appendChild(div);
+      outputDisplay.scrollTop = outputDisplay.scrollHeight;
+    }
+    
+    // Handle stdin input
+    function handleStdinInput(promptData) {
+      const { promptId, message, defaultValue } = promptData;
+      
+      // Show the stdin prompt
+      addToOutput(`[STDIN] ${message}`, 'stdin');
+      
+      // Set up stdin handler
+      currentStdinHandler = {
+        promptId,
+        defaultValue: defaultValue || '',
+        currentInput: defaultValue || ''
+      };
+      
+      // Show cursor
+      const cursorDiv = document.createElement('div');
+      cursorDiv.className = 'stdin';
+      cursorDiv.id = 'stdin-cursor';
+      cursorDiv.textContent = `> ${currentStdinHandler.currentInput}|`;
+      outputDisplay.appendChild(cursorDiv);
+      outputDisplay.scrollTop = outputDisplay.scrollHeight;
+    }
+    
+    // Handle keypress for stdin
+    function handleKeyPress(event) {
+      if (!currentStdinHandler) return;
+      
+      const cursorDiv = document.getElementById('stdin-cursor');
+      if (!cursorDiv) return;
+      
+      if (event.key === 'Enter') {
+        // Submit the input
+        const value = currentStdinHandler.currentInput;
+        
+        // Update cursor to show final value
+        cursorDiv.textContent = `> ${value}`;
+        cursorDiv.id = ''; // Remove cursor id
+        
+        // Send response back to iframe
+        window.jsExecutor.sendStdinResponse(currentStdinHandler.promptId, value);
+        
+        // Clear stdin handler
+        currentStdinHandler = null;
+        
+        outputDisplay.scrollTop = outputDisplay.scrollHeight;
+      } else if (event.key === 'Backspace') {
+        // Remove last character
+        currentStdinHandler.currentInput = currentStdinHandler.currentInput.slice(0, -1);
+        cursorDiv.textContent = `> ${currentStdinHandler.currentInput}|`;
+        outputDisplay.scrollTop = outputDisplay.scrollHeight;
+      } else if (event.key.length === 1) {
+        // Add character
+        currentStdinHandler.currentInput += event.key;
+        cursorDiv.textContent = `> ${currentStdinHandler.currentInput}|`;
+        outputDisplay.scrollTop = outputDisplay.scrollHeight;
+      }
+    }
+    
+    // Add global keypress listener
+    document.addEventListener('keypress', handleKeyPress);
+    document.addEventListener('keydown', (event) => {
+      if (event.key === 'Backspace') {
+        handleKeyPress(event);
+      }
+    });
     
     // Wait for script to load and check what's available
     setTimeout(() => {
@@ -159,11 +241,12 @@ throw new Error("Test error");</textarea>
         
         executor.onMessage((message) => {
           if (message.type === 'stdout') {
-            outputDisplay.innerHTML += `<div class="stdout">[STDOUT] ${message.data}</div>`;
+            addToOutput(`[STDOUT] ${message.data}`, 'stdout');
           } else if (message.type === 'stderr') {
-            outputDisplay.innerHTML += `<div class="stderr">[STDERR] ${message.data}</div>`;
+            addToOutput(`[STDERR] ${message.data}`, 'stderr');
+          } else if (message.type === 'awaiting-input') {
+            handleStdinInput(message);
           }
-          outputDisplay.scrollTop = outputDisplay.scrollHeight;
         });
         
         addDebugLog('Message listener attached!');
@@ -172,30 +255,30 @@ throw new Error("Test error");</textarea>
         window.jsExecutor = executor;
         
       } catch (error) {
-        outputDisplay.innerHTML += `<div class="stderr">[ERROR] Failed to initialize executor: ${error.message}</div>`;
+        addToOutput(`[ERROR] Failed to initialize executor: ${error.message}`, 'stderr');
         console.error('Initialization error:', error);
       }
     }, 100);
 
     function executeCode() {
       if (!window.jsExecutor) {
-        outputDisplay.innerHTML += `<div class="stderr">[ERROR] Executor not initialized</div>`;
+        addToOutput('[ERROR] Executor not initialized', 'stderr');
         return;
       }
       
       const code = document.getElementById('codeInput').value;
-      outputDisplay.innerHTML += `<div class="execute-msg">EXECUTING CODE!</div>`;
-      outputDisplay.scrollTop = outputDisplay.scrollHeight;
+      addToOutput('EXECUTING CODE!', 'execute-msg');
       
       try {
         window.jsExecutor.executeCode(code);
       } catch (error) {
-        outputDisplay.innerHTML += `<div class="stderr">[ERROR] During execution: ${error.message}</div>`;
+        addToOutput(`[ERROR] During execution: ${error.message}`, 'stderr');
       }
     }
     
     function clearOutput() {
       outputDisplay.innerHTML = '';
+      currentStdinHandler = null;
     }
   </script>
 </body>

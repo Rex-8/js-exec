@@ -1,3 +1,4 @@
+// Modified index.js
 console.log("js-exec script loaded!");
 
 // Use function constructor instead of class
@@ -13,6 +14,7 @@ function JSExec(options) {
     this.iframeOrigin = options.iframeOrigin || window.location.origin;
     this.listeners = new Set();
     this.isReady = false;
+    this.pendingPrompts = new Map(); // Store pending prompt requests
 
     console.log("=== DEBUG: Properties set, about to setup message listener ===");
     this.setupMessageListener();
@@ -58,10 +60,13 @@ JSExec.prototype.getIframeContent = function() {
 JSExec.prototype.getExecutorScript = function() {
   return `
     const MAX_EXECUTION_TIME = 5000;
+    let promptCounter = 0;
+    const pendingPrompts = new Map();
 
     const originalLog = console.log;
     const originalError = console.error;
     const originalWarn = console.warn;
+    const originalPrompt = window.prompt;
 
     console.log = (...args) => {
       window.parent.postMessage({ type: 'stdout', data: args.map(arg => typeof arg === 'object' ? JSON.stringify(arg) : String(arg)).join(' ') }, '*');
@@ -78,14 +83,39 @@ JSExec.prototype.getExecutorScript = function() {
       originalWarn.apply(console, args);
     };
 
+    // Override prompt to use postMessage communication
+    window.prompt = function(message, defaultValue) {
+      const promptId = ++promptCounter;
+      
+      return new Promise((resolve) => {
+        pendingPrompts.set(promptId, resolve);
+        
+        // Send awaiting-input message to parent
+        window.parent.postMessage({
+          type: 'awaiting-input',
+          promptId: promptId,
+          message: message || '',
+          defaultValue: defaultValue || ''
+        }, '*');
+      });
+    };
+
     function executeWithTimeout(code) {
       const timeoutId = setTimeout(() => {
         window.parent.postMessage({ type: 'stderr', data: 'Execution timeout: Code took longer than 5000ms' }, '*');
       }, MAX_EXECUTION_TIME);
 
       try {
-        eval(code);
-        clearTimeout(timeoutId);
+        // Use async function to handle potential promises from prompt
+        (async function() {
+          try {
+            await eval(\`(async function() { \${code} })()\`);
+            clearTimeout(timeoutId);
+          } catch (error) {
+            clearTimeout(timeoutId);
+            window.parent.postMessage({ type: 'stderr', data: error.message + (error.stack ? '\\n' + error.stack : '') }, '*');
+          }
+        })();
       } catch (error) {
         clearTimeout(timeoutId);
         window.parent.postMessage({ type: 'stderr', data: error.message + (error.stack ? '\\n' + error.stack : '') }, '*');
@@ -95,6 +125,14 @@ JSExec.prototype.getExecutorScript = function() {
     window.addEventListener('message', (event) => {
       if (event.data.type === 'EXECUTE_CODE') {
         executeWithTimeout(event.data.code);
+      } else if (event.data.type === 'stdin') {
+        // Handle stdin response from parent
+        const { promptId, value } = event.data;
+        const resolve = pendingPrompts.get(promptId);
+        if (resolve) {
+          pendingPrompts.delete(promptId);
+          resolve(value);
+        }
       }
     });
   `;
@@ -103,9 +141,35 @@ JSExec.prototype.getExecutorScript = function() {
 JSExec.prototype.setupMessageListener = function() {
   window.addEventListener('message', (event) => {
     if (event.source === this.iframe?.contentWindow) {
-      this.listeners.forEach(callback => callback(event.data));
+      if (event.data.type === 'awaiting-input') {
+        this.handlePromptRequest(event.data);
+      } else {
+        this.listeners.forEach(callback => callback(event.data));
+      }
     }
   });
+};
+
+JSExec.prototype.handlePromptRequest = function(promptData) {
+  const { promptId, message, defaultValue } = promptData;
+  
+  // Notify listeners about the prompt request
+  this.listeners.forEach(callback => callback({
+    type: 'awaiting-input',
+    promptId,
+    message,
+    defaultValue
+  }));
+};
+
+JSExec.prototype.sendStdinResponse = function(promptId, value) {
+  if (this.iframe && this.isReady) {
+    this.iframe.contentWindow.postMessage({
+      type: 'stdin',
+      promptId,
+      value
+    }, '*');
+  }
 };
 
 JSExec.prototype.onMessage = function(callback) {
@@ -120,6 +184,7 @@ JSExec.prototype.destroy = function() {
     this.isReady = false;
   }
   this.listeners.clear();
+  this.pendingPrompts.clear();
 };
 
 // Export logic - make sure it works in all environments
