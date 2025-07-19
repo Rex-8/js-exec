@@ -159,10 +159,10 @@ console.log("Done!");</textarea>
         currentInput: defaultValue || ''
       };
       
-      // Show cursor
+      // Show cursor with unique ID based on promptId
       const cursorDiv = document.createElement('div');
       cursorDiv.className = 'stdin';
-      cursorDiv.id = 'stdin-cursor';
+      cursorDiv.id = `stdin-cursor-${promptId}`;
       cursorDiv.textContent = `> ${currentStdinHandler.currentInput}|`;
       outputDisplay.appendChild(cursorDiv);
       outputDisplay.scrollTop = outputDisplay.scrollHeight;
@@ -172,21 +172,21 @@ console.log("Done!");</textarea>
     function handleKeyPress(event) {
       if (!currentStdinHandler) return;
       
-      const cursorDiv = document.getElementById('stdin-cursor');
+      const cursorDiv = document.getElementById(`stdin-cursor-${currentStdinHandler.promptId}`);
       if (!cursorDiv) return;
       
       if (event.key === 'Enter') {
-        // Submit the input
-        const value = currentStdinHandler.currentInput;
+        // Submit the input - use default value if current input is empty
+        const value = currentStdinHandler.currentInput || currentStdinHandler.defaultValue;
         
-        // Update cursor to show final value
+        // Update cursor to show final value and remove cursor permanently
         cursorDiv.textContent = `> ${value}`;
-        cursorDiv.id = ''; // Remove cursor id
+        cursorDiv.id = ''; // Remove cursor id so it can't be modified again
         
-        // Send response back to iframe
+        // Send response back to iframe - always send a response
         window.jsExecutor.sendStdinResponse(currentStdinHandler.promptId, value);
         
-        // Clear stdin handler
+        // Clear stdin handler immediately to prevent further input
         currentStdinHandler = null;
         
         outputDisplay.scrollTop = outputDisplay.scrollHeight;
